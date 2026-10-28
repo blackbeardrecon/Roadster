@@ -5,11 +5,11 @@
   "zones": {
     "body": {
       "triOffset": 330456,
-      "triCount": 25281,
-      "creaseOffset": 381020,
-      "creaseVertCount": 9112,
-      "gridOffset": 490364,
-      "gridVertCount": 47148,
+      "triCount": 23361,
+      "creaseOffset": 377180,
+      "creaseVertCount": 8188,
+      "gridOffset": 475436,
+      "gridVertCount": 44270,
       "center": [
         -0.8546,
         0.5375,
@@ -17,11 +17,11 @@
       ]
     },
     "canopy": {
-      "triOffset": 1056140,
+      "triOffset": 1006676,
       "triCount": 3246,
-      "creaseOffset": 1062632,
+      "creaseOffset": 1013168,
       "creaseVertCount": 1056,
-      "gridOffset": 1075304,
+      "gridOffset": 1025840,
       "gridVertCount": 7238,
       "center": [
         -0.0766,
@@ -30,11 +30,11 @@
       ]
     },
     "wheel_fl": {
-      "triOffset": 1162160,
+      "triOffset": 1112696,
       "triCount": 3711,
-      "creaseOffset": 1169584,
+      "creaseOffset": 1120120,
       "creaseVertCount": 1660,
-      "gridOffset": 1189504,
+      "gridOffset": 1140040,
       "gridVertCount": 7106,
       "center": [
         1.4231,
@@ -43,11 +43,11 @@
       ]
     },
     "wheel_fr": {
-      "triOffset": 1274776,
+      "triOffset": 1225312,
       "triCount": 3516,
-      "creaseOffset": 1281808,
+      "creaseOffset": 1232344,
       "creaseVertCount": 1698,
-      "gridOffset": 1302184,
+      "gridOffset": 1252720,
       "gridVertCount": 6844,
       "center": [
         1.461,
@@ -56,11 +56,11 @@
       ]
     },
     "wheel_rl": {
-      "triOffset": 1384312,
+      "triOffset": 1334848,
       "triCount": 5571,
-      "creaseOffset": 1395456,
+      "creaseOffset": 1345992,
       "creaseVertCount": 2576,
-      "gridOffset": 1426368,
+      "gridOffset": 1376904,
       "gridVertCount": 9040,
       "center": [
         -1.5264,
@@ -69,11 +69,11 @@
       ]
     },
     "wheel_rr": {
-      "triOffset": 1534848,
+      "triOffset": 1485384,
       "triCount": 6000,
-      "creaseOffset": 1546848,
+      "creaseOffset": 1497384,
       "creaseVertCount": 2482,
-      "gridOffset": 1576632,
+      "gridOffset": 1527168,
       "gridVertCount": 9744,
       "center": [
         -1.4965,
@@ -82,15 +82,15 @@
       ]
     },
     "rear_wing": {
-      "triOffset": 1693560,
-      "triCount": 0,
-      "creaseOffset": 1693560,
-      "creaseVertCount": 0,
-      "gridOffset": 1693560,
-      "gridVertCount": 0,
+      "triOffset": 1644096,
+      "triCount": 1920,
+      "creaseOffset": 1647936,
+      "creaseVertCount": 924,
+      "gridOffset": 1659024,
+      "gridVertCount": 2878,
       "center": [
-        -2.06,
-        0.915,
+        -1.98,
+        0.935,
         0
       ]
     },

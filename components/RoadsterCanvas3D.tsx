@@ -354,6 +354,10 @@ export default function RoadsterCanvas3D({
       opacity: 0.92,
     });
 
+    const rearWingBodySurfMat = bodyShellMat.clone();
+    const rearWingBodyGridMat = bodyWireframeMat.clone();
+    const rearWingBodyCreaseMat = bodyCreaseMat.clone();
+
     const frontSplitterWireMat = new THREE.LineBasicMaterial({
       color: 0x94a3b8,
       transparent: true,
@@ -443,7 +447,7 @@ export default function RoadsterCanvas3D({
     const staticBodyZonesGroup = new THREE.Group();
     chassisGroup.add(staticBodyZonesGroup);
 
-    const rearWingBaseCenter: [number, number, number] = [-2.04, 0.915, 0.0];
+    const rearWingBaseCenter: [number, number, number] = [-1.98, 0.935, 0.0];
     const rearWingGroup = new THREE.Group();
     rearWingGroup.position.set(...rearWingBaseCenter);
     chassisGroup.add(rearWingGroup);
@@ -566,6 +570,15 @@ export default function RoadsterCanvas3D({
         attachZone('thrusters', staticBodyZonesGroup, goldThrusterMat, thrusterWireMat, thrusterCreaseMat);
 
         // Articulated aero zones (rotating & deploying around their exact 3D centroids)
+        // Rear Wing is the actual partitioned back piece of the car body (closed = 100% seamless car body)
+        attachZone(
+          'rear_wing',
+          rearWingGroup,
+          rearWingBodySurfMat,
+          rearWingBodyGridMat,
+          rearWingBodyCreaseMat,
+          rearWingBaseCenter
+        );
         attachZone(
           'front_splitter',
           frontSplitterGroup,
@@ -614,164 +627,306 @@ export default function RoadsterCanvas3D({
         console.error('Failed to load Tesla Volador 3D asset:', err);
       });
 
-    // Precision Contoured 4×16 Quad-Wireframe Active Rear Wing + Swept Triangular Outer Endplates
-    // Conforms 1:1 to the rear decklid when Stowed (sec_03_car.jpg), levels in Low Drag (sec_05_car.jpg),
-    // and pitches to High Downforce (sec_04_car.jpg, sec_23_car.jpg, sec_32_car.jpg)
+    // 1. Recessed Inner Decklid Shelf & Strut Actuator Pockets (exposed inside static body when spoiler opens)
+    // Seals the rear body cavity under the lifted spoiler and reflects the crimson taillight glow
+    const recessedDecklidGroup = new THREE.Group();
+    recessedDecklidGroup.visible = false;
+    staticBodyZonesGroup.add(recessedDecklidGroup);
     {
-      const wingLocalGroup = new THREE.Group();
-      wingLocalGroup.position.set(
-        -rearWingBaseCenter[0],
-        -rearWingBaseCenter[1],
-        -rearWingBaseCenter[2]
-      );
-      rearWingGroup.add(wingLocalGroup);
+      const rU = 4;
+      const rV = 16;
+      const shelfVerts: number[] = [];
+      const shelfTris: number[] = [];
+      const shelfLines: number[] = [];
 
-      const nU = 5; // 4 chordwise quad rows
-      const nV = 16; // 16 spanwise quad columns
-      const wingVerts: number[] = [];
-      const wingTris: number[] = [];
-      const wingQuadLines: number[] = [];
-
-      const evalDeck = (u: number, v: number, isTop: boolean): [number, number, number] => {
+      const evalInnerShelf = (u: number, v: number): [number, number, number] => {
         const z = v * 0.875;
-        const xLead = -1.895 - 0.032 * v * v;
+        const xLead = -1.915 - 0.055 * v * v;
         const xTrail = -2.238 + 0.008 * v * v;
         const x = xLead * (1 - u) + xTrail * u;
-        const yContour =
-          (0.956 * (1 - u) + 0.896 * u) -
-          0.022 * v * v +
-          0.011 * Math.sin(u * Math.PI);
-        const thickness = isTop
-          ? 0.004 + 0.007 * Math.sin(u * Math.PI)
-          : -0.002 - 0.009 * Math.sin(u * Math.PI);
-        return [x, yContour + thickness, z];
+        const y = (0.942 * (1 - u) + 0.878 * u) - 0.016 * v * v;
+        return [x, y, z];
       };
 
-      // Top skin vertices [0 .. (nU+1)*(nV+1)-1], Bottom skin vertices offset by stride
-      const stride = (nU + 1) * (nV + 1);
-      for (const isTop of [true, false]) {
-        for (let iu = 0; iu <= nU; iu++) {
-          const u = iu / nU;
-          for (let iv = 0; iv <= nV; iv++) {
-            const v = (iv / nV) * 2 - 1;
-            const [x, y, z] = evalDeck(u, v, isTop);
-            wingVerts.push(x, y, z);
-          }
+      for (let iu = 0; iu <= rU; iu++) {
+        const u = iu / rU;
+        for (let iv = 0; iv <= rV; iv++) {
+          const v = (iv / rV) * 2 - 1;
+          const [x, y, z] = evalInnerShelf(u, v);
+          shelfVerts.push(x, y, z);
+        }
+      }
+      for (let iu = 0; iu < rU; iu++) {
+        for (let iv = 0; iv < rV; iv++) {
+          const a = iu * (rV + 1) + iv;
+          const b = a + 1;
+          const c = a + (rV + 1);
+          const d = c + 1;
+          shelfTris.push(a, c, b, b, c, d);
+        }
+      }
+      for (let iu = 0; iu <= rU; iu++) {
+        for (let iv = 0; iv < rV; iv++) {
+          const a = (iu * (rV + 1) + iv) * 3;
+          const b = (iu * (rV + 1) + iv + 1) * 3;
+          shelfLines.push(
+            shelfVerts[a], shelfVerts[a + 1], shelfVerts[a + 2],
+            shelfVerts[b], shelfVerts[b + 1], shelfVerts[b + 2]
+          );
+        }
+      }
+      for (let iv = 0; iv <= rV; iv++) {
+        for (let iu = 0; iu < rU; iu++) {
+          const a = (iu * (rV + 1) + iv) * 3;
+          const c = ((iu + 1) * (rV + 1) + iv) * 3;
+          shelfLines.push(
+            shelfVerts[a], shelfVerts[a + 1], shelfVerts[a + 2],
+            shelfVerts[c], shelfVerts[c + 1], shelfVerts[c + 2]
+          );
         }
       }
 
-      for (let layer = 0; layer < 2; layer++) {
-        const base = layer * stride;
-        for (let iu = 0; iu < nU; iu++) {
-          for (let iv = 0; iv < nV; iv++) {
-            const a = base + iu * (nV + 1) + iv;
-            const b = a + 1;
-            const c = a + (nV + 1);
-            const d = c + 1;
-            if (layer === 0) {
-              wingTris.push(a, c, b, b, c, d);
-            } else {
-              wingTris.push(a, b, c, b, d, c);
-            }
-          }
+      // Inner quarter-panel step walls at z = +-0.875 and rear taillight step wall at u = 1
+      ([-1, 1] as const).forEach((sSign) => {
+        const baseIdx = shelfVerts.length / 3;
+        for (let iu = 0; iu <= rU; iu++) {
+          const u = iu / rU;
+          const [xIn, yIn, zIn] = evalInnerShelf(u, sSign);
+          const yOut = yIn + 0.022 * (1 - 0.3 * u);
+          shelfVerts.push(xIn, yIn, zIn, xIn, yOut, zIn);
         }
-        // Pure quad grid lines (no diagonals)
-        for (let iu = 0; iu <= nU; iu++) {
-          for (let iv = 0; iv < nV; iv++) {
-            const a = ( base + iu * (nV + 1) + iv ) * 3;
-            const b = ( base + iu * (nV + 1) + iv + 1 ) * 3;
-            wingQuadLines.push(
-              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
-              wingVerts[b], wingVerts[b + 1], wingVerts[b + 2]
-            );
-          }
+        for (let iu = 0; iu < rU; iu++) {
+          const a = baseIdx + iu * 2;
+          const b = a + 1;
+          const c = a + 2;
+          const d = a + 3;
+          shelfTris.push(a, b, c, b, d, c);
         }
+      });
+
+      const shelfGeo = new THREE.BufferGeometry();
+      shelfGeo.setAttribute('position', new THREE.Float32BufferAttribute(shelfVerts, 3));
+      shelfGeo.setIndex(shelfTris);
+      shelfGeo.computeVertexNormals();
+      recessedDecklidGroup.add(new THREE.Mesh(shelfGeo, bodyShellMat));
+
+      const shelfWireGeo = new THREE.BufferGeometry();
+      shelfWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(shelfLines, 3));
+      recessedDecklidGroup.add(new THREE.LineSegments(shelfWireGeo, bodyWireframeMat));
+
+      // Two recessed rectangular strut actuator pockets on the inner decklid shelf at z = +-0.35
+      const pocketGeo = new THREE.BoxGeometry(0.15, 0.012, 0.068);
+      [-0.35, 0.35].forEach((zPos) => {
+        const pocketMesh = new THREE.Mesh(pocketGeo, carbonMat);
+        pocketMesh.position.set(-2.03, 0.892, zPos);
+        pocketMesh.rotation.z = 0.16;
+        recessedDecklidGroup.add(pocketMesh);
+
+        const pocketRim = new THREE.LineSegments(
+          new THREE.EdgesGeometry(pocketGeo),
+          rearWingWireMat
+        );
+        pocketRim.position.copy(pocketMesh.position);
+        pocketRim.rotation.copy(pocketMesh.rotation);
+        recessedDecklidGroup.add(pocketRim);
+      });
+    }
+
+    // 2. Deployed Spoiler Underside 4x16 Crimson Quad-Wireframe Grid, Silver Bevel Lips & Endplate Overlays
+    // Hidden when Stowed so the closed car is 100% pure car body; revealed as the spoiler moves out & tilts
+    const wingAeroUnderlayGroup = new THREE.Group();
+    wingAeroUnderlayGroup.position.set(
+      -rearWingBaseCenter[0],
+      -rearWingBaseCenter[1],
+      -rearWingBaseCenter[2]
+    );
+    wingAeroUnderlayGroup.visible = false;
+    rearWingGroup.add(wingAeroUnderlayGroup);
+    {
+      const wingUndersideDarkMat = new THREE.MeshStandardMaterial({
+        color: 0x110304,
+        emissive: 0x260303,
+        emissiveIntensity: 0.45,
+        metalness: 0.45,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1,
+      });
+
+      const nU = 4; // 4 chordwise quad rows on underside (matches zoom_high_downforce.jpg)
+      const nV = 16; // 16 spanwise quad columns across rear wing width
+      const underVerts: number[] = [];
+      const underTris: number[] = [];
+      const underLines: number[] = [];
+
+      const evalUnderside = (u: number, v: number): [number, number, number] => {
+        const z = v * 0.880;
+        const xLead = -1.948 - 0.042 * v * v;
+        const xTrail = -2.262 + 0.010 * v * v;
+        const x = xLead * (1 - u) + xTrail * u;
+        const y =
+          (0.924 * (1 - u) + 0.871 * u) -
+          0.014 * v * v +
+          0.004 * Math.sin(u * Math.PI);
+        return [x, y, z];
+      };
+
+      for (let iu = 0; iu <= nU; iu++) {
+        const u = iu / nU;
         for (let iv = 0; iv <= nV; iv++) {
-          for (let iu = 0; iu < nU; iu++) {
-            const a = ( base + iu * (nV + 1) + iv ) * 3;
-            const c = ( base + (iu + 1) * (nV + 1) + iv ) * 3;
-            wingQuadLines.push(
-              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
-              wingVerts[c], wingVerts[c + 1], wingVerts[c + 2]
-            );
-          }
+          const v = (iv / nV) * 2 - 1;
+          const [x, y, z] = evalUnderside(u, v);
+          underVerts.push(x, y, z);
+        }
+      }
+      for (let iu = 0; iu < nU; iu++) {
+        for (let iv = 0; iv < nV; iv++) {
+          const a = iu * (nV + 1) + iv;
+          const b = a + 1;
+          const c = a + (nV + 1);
+          const d = c + 1;
+          underTris.push(a, b, c, b, d, c);
+        }
+      }
+      for (let iu = 0; iu <= nU; iu++) {
+        for (let iv = 0; iv < nV; iv++) {
+          const a = (iu * (nV + 1) + iv) * 3;
+          const b = (iu * (nV + 1) + iv + 1) * 3;
+          underLines.push(
+            underVerts[a], underVerts[a + 1], underVerts[a + 2],
+            underVerts[b], underVerts[b + 1], underVerts[b + 2]
+          );
+        }
+      }
+      for (let iv = 0; iv <= nV; iv++) {
+        for (let iu = 0; iu < nU; iu++) {
+          const a = (iu * (nV + 1) + iv) * 3;
+          const c = ((iu + 1) * (nV + 1) + iv) * 3;
+          underLines.push(
+            underVerts[a], underVerts[a + 1], underVerts[a + 2],
+            underVerts[c], underVerts[c + 1], underVerts[c + 2]
+          );
         }
       }
 
-      // Swept Triangular / Chevron Outer Endplates at z = -0.875 and z = +0.875 (matching sec_03, sec_04, sec_05)
-      const nW = 3; // vertical quad subdivisions on each endplate
-      ([-1, 1] as const).forEach((sideSign) => {
-        const epBaseIdx = wingVerts.length / 3;
-        for (let iu = 0; iu <= nU; iu++) {
-          const u = iu / nU;
-          const [xTop, yTop, zTop] = evalDeck(u, sideSign, true);
-          const xBot = -2.01 * (1 - u) + -2.246 * u;
-          const yBot = 0.882 * (1 - u) + 0.746 * u;
-          const zBot = sideSign * (0.892 + 0.018 * u);
-          for (let iw = 0; iw <= nW; iw++) {
-            const w = iw / nW;
-            wingVerts.push(
+      // Swept triangular outer corner endplate inner dark faces & crimson quad grids at z = +-0.885..0.945
+      const epU = 4;
+      const epW = 3;
+      ([-1, 1] as const).forEach((sSign) => {
+        const epBase = underVerts.length / 3;
+        for (let iu = 0; iu <= epU; iu++) {
+          const u = iu / epU;
+          const xTop = -2.165 * (1 - u) + -2.264 * u;
+          const yTop = 0.892 * (1 - u) + 0.884 * u;
+          const zTop = sSign * 0.884;
+
+          const xBot = -2.175 * (1 - u) + -2.256 * u;
+          const yBot = 0.870 * (1 - u) + 0.742 * u;
+          const zBot = sSign * (0.942 - 0.022 * u);
+
+          for (let iw = 0; iw <= epW; iw++) {
+            const w = iw / epW;
+            underVerts.push(
               xTop * (1 - w) + xBot * w,
               yTop * (1 - w) + yBot * w,
               zTop * (1 - w) + zBot * w
             );
           }
         }
-        for (let iu = 0; iu < nU; iu++) {
-          for (let iw = 0; iw < nW; iw++) {
-            const a = epBaseIdx + iu * (nW + 1) + iw;
+        for (let iu = 0; iu < epU; iu++) {
+          for (let iw = 0; iw < epW; iw++) {
+            const a = epBase + iu * (epW + 1) + iw;
             const b = a + 1;
-            const c = a + (nW + 1);
+            const c = a + (epW + 1);
             const d = c + 1;
-            wingTris.push(a, b, c, b, d, c);
+            underTris.push(a, b, c, b, d, c);
           }
         }
-        for (let iu = 0; iu <= nU; iu++) {
-          for (let iw = 0; iw < nW; iw++) {
-            const a = (epBaseIdx + iu * (nW + 1) + iw) * 3;
-            const b = (epBaseIdx + iu * (nW + 1) + iw + 1) * 3;
-            wingQuadLines.push(
-              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
-              wingVerts[b], wingVerts[b + 1], wingVerts[b + 2]
+        for (let iu = 0; iu <= epU; iu++) {
+          for (let iw = 0; iw < epW; iw++) {
+            const a = (epBase + iu * (epW + 1) + iw) * 3;
+            const b = (epBase + iu * (epW + 1) + iw + 1) * 3;
+            underLines.push(
+              underVerts[a], underVerts[a + 1], underVerts[a + 2],
+              underVerts[b], underVerts[b + 1], underVerts[b + 2]
             );
           }
         }
-        for (let iw = 0; iw <= nW; iw++) {
-          for (let iu = 0; iu < nU; iu++) {
-            const a = (epBaseIdx + iu * (nW + 1) + iw) * 3;
-            const c = (epBaseIdx + (iu + 1) * (nW + 1) + iw) * 3;
-            wingQuadLines.push(
-              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
-              wingVerts[c], wingVerts[c + 1], wingVerts[c + 2]
+        for (let iw = 0; iw <= epW; iw++) {
+          for (let iu = 0; iu < epU; iu++) {
+            const a = (epBase + iu * (epW + 1) + iw) * 3;
+            const c = (epBase + (iu + 1) * (epW + 1) + iw) * 3;
+            underLines.push(
+              underVerts[a], underVerts[a + 1], underVerts[a + 2],
+              underVerts[c], underVerts[c + 1], underVerts[c + 2]
             );
           }
         }
       });
 
-      const wingSurfGeo = new THREE.BufferGeometry();
-      wingSurfGeo.setAttribute('position', new THREE.Float32BufferAttribute(wingVerts, 3));
-      wingSurfGeo.setIndex(wingTris);
-      wingSurfGeo.computeVertexNormals();
-      wingLocalGroup.add(new THREE.Mesh(wingSurfGeo, activeAeroSurfaceMat));
+      const underSurfGeo = new THREE.BufferGeometry();
+      underSurfGeo.setAttribute('position', new THREE.Float32BufferAttribute(underVerts, 3));
+      underSurfGeo.setIndex(underTris);
+      underSurfGeo.computeVertexNormals();
+      wingAeroUnderlayGroup.add(new THREE.Mesh(underSurfGeo, wingUndersideDarkMat));
 
-      const wingWireGeo = new THREE.BufferGeometry();
-      wingWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(wingQuadLines, 3));
-      wingLocalGroup.add(new THREE.LineSegments(wingWireGeo, rearWingWireMat));
+      const underWireGeo = new THREE.BufferGeometry();
+      underWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(underLines, 3));
+      wingAeroUnderlayGroup.add(new THREE.LineSegments(underWireGeo, rearWingWireMat));
+
+      // Solid silver/white metallic trailing fascia bar (visible in Low Drag) & lower clevis bevel lip (visible in High Downforce)
+      const lipVerts: number[] = [];
+      const lipTris: number[] = [];
+      for (let iv = 0; iv <= nV; iv++) {
+        const v = (iv / nV) * 2 - 1;
+        const [xT, yT, zT] = evalUnderside(1.0, v);
+        // Trailing fascia metallic bar (u = 1.0, height 18mm)
+        lipVerts.push(xT - 0.008, yT - 0.002, zT, xT - 0.004, yT + 0.017, zT);
+      }
+      const trailStride = (nV + 1) * 2;
+      for (let iv = 0; iv < nV; iv++) {
+        const a = iv * 2;
+        const b = a + 1;
+        const c = a + 2;
+        const d = a + 3;
+        lipTris.push(a, b, c, b, d, c);
+      }
+      // Leading clevis lower silver bevel bar (u = 0.0, visible at the top of the struts in High Downforce)
+      for (let iv = 0; iv <= nV; iv++) {
+        const v = (iv / nV) * 2 - 1;
+        const [xL, yL, zL] = evalUnderside(0.0, v);
+        lipVerts.push(xL + 0.018, yL - 0.014, zL, xL - 0.004, yL + 0.002, zL);
+      }
+      for (let iv = 0; iv < nV; iv++) {
+        const a = trailStride + iv * 2;
+        const b = a + 1;
+        const c = a + 2;
+        const d = a + 3;
+        lipTris.push(a, b, c, b, d, c);
+      }
+      const lipGeo = new THREE.BufferGeometry();
+      lipGeo.setAttribute('position', new THREE.Float32BufferAttribute(lipVerts, 3));
+      lipGeo.setIndex(lipTris);
+      lipGeo.computeVertexNormals();
+      wingAeroUnderlayGroup.add(new THREE.Mesh(lipGeo, bodyShellMat));
     }
 
-    // Twin Articulated Hydraulic/Linkage Pylon Struts connecting the recessed rear decklid to the active Rear Wing
-    // (Matches sec_04_car.jpg, sec_05_car.jpg, sec_23_car.jpg, sec_32_car.jpg, sec_33_car.jpg)
+    // 3. Twin Articulated Diagonal Linkage Struts & V-Clevis Brackets (z = +-0.35)
+    // Emerge from the recessed inner decklid pockets and push the rear piece of the car outside the body
     const rearWingAuxGroup = new THREE.Group();
+    rearWingAuxGroup.visible = false;
     chassisGroup.add(rearWingAuxGroup);
 
     const pylonStrutPairs: {
       mainStrut: THREE.Group;
-      rearLink: THREE.Group;
+      clevisHead: THREE.Group;
       zPos: number;
     }[] = [];
 
-    const mainStrutGeo = new THREE.BoxGeometry(0.055, 0.18, 0.018);
-    const rearLinkGeo = new THREE.BoxGeometry(0.028, 0.16, 0.014);
+    const mainStrutGeo = new THREE.BoxGeometry(0.022, 1.0, 0.016);
+    const clevisEarGeo = new THREE.BoxGeometry(0.028, 0.028, 0.008);
 
     [-0.35, 0.35].forEach((zPos) => {
       const mainStrut = new THREE.Group();
@@ -783,16 +938,21 @@ export default function RoadsterCanvas3D({
       mainStrut.add(sMesh, sWire);
       rearWingAuxGroup.add(mainStrut);
 
-      const rearLink = new THREE.Group();
-      const lMesh = new THREE.Mesh(rearLinkGeo, carbonMat);
-      const lWire = new THREE.LineSegments(
-        new THREE.EdgesGeometry(rearLinkGeo),
-        rearWingWireMat
-      );
-      rearLink.add(lMesh, lWire);
-      rearWingAuxGroup.add(rearLink);
+      // Twin-ear vertical clevis bracket at the top of each diagonal strut (matches zoom_low_drag.jpg & zoom_high_downforce.jpg)
+      const clevisHead = new THREE.Group();
+      [-0.016, 0.016].forEach((dz) => {
+        const earMesh = new THREE.Mesh(clevisEarGeo, carbonMat);
+        earMesh.position.set(0, 0, dz);
+        const earWire = new THREE.LineSegments(
+          new THREE.EdgesGeometry(clevisEarGeo),
+          rearWingWireMat
+        );
+        earWire.position.copy(earMesh.position);
+        clevisHead.add(earMesh, earWire);
+      });
+      rearWingAuxGroup.add(clevisHead);
 
-      pylonStrutPairs.push({mainStrut, rearLink, zPos});
+      pylonStrutPairs.push({mainStrut, clevisHead, zPos});
     });
 
     // Fender Barge-Board Crimson Quad-Wireframe Louver Grid behind front wheel (matches sec_07_car.jpg)
@@ -1289,13 +1449,14 @@ export default function RoadsterCanvas3D({
       thrusterGoldLight.intensity = isStudioMode ? 0.4 : 2.4;
 
       // Apply 1: Two-Stage Rear Wing Kinematics (Stowed -> Low Drag -> High Downforce)
-      // Matches sec_03_car.jpg (Stowed), sec_05_car.jpg (Low Drag), sec_04_car.jpg (High Downforce), and sec_31..33
+      // Closed (Stowed) = 100% seamless car body. Opening moves the back piece of the car outside the body
+      // on diagonal struts (Low Drag = horizontal leveled bar; High Downforce = steep 38-deg pitch exposing 4x16 underside grid)
       const effectiveRearWing = isStudioMode && s.activeHotspot !== 'rearWing' ? 0 : curRearWing;
       const tLift = Math.min(1, effectiveRearWing / 0.48);
       const tHigh = Math.max(0, (effectiveRearWing - 0.48) / 0.52);
-      const wingLiftY = tLift * 0.135 + tHigh * 0.05;
-      const wingShiftX = -tLift * 0.032 - tHigh * 0.022;
-      const wingPitchZ = -tLift * 0.145 - tHigh * 0.335;
+      const wingLiftY = tLift * 0.082 - tHigh * 0.004;
+      const wingShiftX = -tLift * 0.068 - tHigh * 0.014;
+      const wingPitchZ = -tLift * 0.165 - tHigh * 0.495;
 
       rearWingGroup.position.set(
         rearWingBaseCenter[0] + wingShiftX,
@@ -1304,25 +1465,30 @@ export default function RoadsterCanvas3D({
       );
       rearWingGroup.rotation.z = wingPitchZ;
 
-      rearWingAuxGroup.visible = effectiveRearWing > 0.03;
-      const strutScaleY = Math.max(0.05, wingLiftY / 0.165);
-      pylonStrutPairs.forEach(({mainStrut, rearLink, zPos}) => {
-        mainStrut.position.set(
-          -1.98 + wingShiftX * 0.45,
-          0.895 + wingLiftY * 0.48,
-          zPos
-        );
-        mainStrut.scale.set(1, strutScaleY, 1);
-        mainStrut.rotation.z = 0.22 + tHigh * 0.08;
+      const isWingDeployed = effectiveRearWing > 0.01;
+      recessedDecklidGroup.visible = isWingDeployed;
+      wingAeroUnderlayGroup.visible = isWingDeployed;
+      rearWingAuxGroup.visible = isWingDeployed;
 
-        rearLink.position.set(
-          -2.08 + wingShiftX * 0.55,
-          0.892 + wingLiftY * 0.54,
-          zPos
-        );
-        rearLink.scale.set(1, strutScaleY * (1 + tHigh * 0.18), 1);
-        rearLink.rotation.z = 0.3 + tHigh * 0.12;
-      });
+      if (isWingDeployed) {
+        const xBase = -2.015;
+        const yBase = 0.888;
+        const xTop = -1.965 + wingShiftX;
+        const yTop = 0.924 + wingLiftY;
+        const dx = xTop - xBase;
+        const dy = yTop - yBase;
+        const strutLen = Math.max(0.02, Math.hypot(dx, dy));
+        const strutAngle = Math.atan2(-dx, dy);
+
+        pylonStrutPairs.forEach(({mainStrut, clevisHead, zPos}) => {
+          mainStrut.position.set((xBase + xTop) * 0.5, (yBase + yTop) * 0.5, zPos);
+          mainStrut.scale.set(1, strutLen, 1);
+          mainStrut.rotation.z = strutAngle;
+
+          clevisHead.position.set(xTop, yTop, zPos);
+          clevisHead.rotation.z = wingPitchZ * 0.35;
+        });
+      }
 
       // Apply 2: Front Splitter Deployment & Pitch around exact front_splitter centroid
       const splitterOffset =
@@ -1436,6 +1602,19 @@ export default function RoadsterCanvas3D({
         rearWingWireMat.color.setHex(s.activeHotspot === 'rearWing' ? 0xd91b1b : 0x52565e);
         rearWingWireMat.opacity = s.activeHotspot === 'rearWing' ? 0.82 : 0.56;
 
+        rearWingBodySurfMat.color.copy(bodyShellMat.color);
+        rearWingBodySurfMat.metalness = bodyShellMat.metalness;
+        rearWingBodySurfMat.roughness = bodyShellMat.roughness;
+        rearWingBodyGridMat.color.setHex(
+          s.activeHotspot === 'rearWing' && effectiveRearWing > 0.02 ? 0xd91b1b : 0x52565e
+        );
+        rearWingBodyGridMat.opacity =
+          s.activeHotspot === 'rearWing' && effectiveRearWing > 0.02 ? 0.82 : 0.56;
+        rearWingBodyCreaseMat.color.setHex(
+          s.activeHotspot === 'rearWing' && effectiveRearWing > 0.02 ? 0xd91b1b : 0x1f2228
+        );
+        rearWingBodyCreaseMat.opacity = 0.88;
+
         frontSplitterWireMat.color.setHex(0x52565e);
         frontSplitterWireMat.opacity = 0.56;
 
@@ -1497,6 +1676,26 @@ export default function RoadsterCanvas3D({
         );
         rearWingWireMat.opacity =
           s.activeHotspot === 'rearWing' || curRearWing > 0.05 ? 0.95 : 0.42;
+
+        // When Stowed (effectiveRearWing <= 0.01): 100% identical to bodyShellMat / bodyWireframeMat / bodyCreaseMat.
+        // When High Downforce (tHigh > 0.1): transitions to dark charcoal + crimson active-aero wireframe.
+        rearWingBodySurfMat.color.setHex(
+          tHigh > 0.2 ? 0x110304 : curSilhouette > 0.5 ? 0x08090c : 0x1c1f26
+        );
+        rearWingBodySurfMat.metalness = tHigh > 0.2 ? 0.48 : 0.75;
+        rearWingBodySurfMat.roughness = tHigh > 0.2 ? 0.52 : 0.25;
+        rearWingBodySurfMat.opacity = bodyShellMat.opacity;
+
+        rearWingBodyGridMat.color.setHex(tHigh > 0.15 ? 0xff1e1e : 0x94a3b8);
+        rearWingBodyGridMat.opacity =
+          tHigh > 0.15 ? 0.88 : THREE.MathUtils.lerp(0.32, 0.58, anyXray);
+
+        rearWingBodyCreaseMat.color.setHex(
+          tHigh > 0.15 ? 0xff2e2e : effectiveRearWing > 0.02 ? 0xe2e8f0 : 0xcbd5e1
+        );
+        rearWingBodyCreaseMat.opacity =
+          tHigh > 0.15 ? 0.95 : THREE.MathUtils.lerp(0.66, 0.85, anyXray);
+
         frontSplitterWireMat.color.setHex(splitterOffset > 0.1 ? 0xff1e1e : 0x94a3b8);
         frontSplitterWireMat.opacity = splitterOffset > 0.1 ? 0.92 : 0.42;
         bargeBoardWireMat.color.setHex(
