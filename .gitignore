@@ -5,3 +5,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# AI Studio internal artifacts
+.aistudio/
+
+# Original 3D model source (Sketchfab)
+public/assets/aistudio/
