@@ -63,6 +63,9 @@ npm install
 bun dev
 # or
 npm run dev
+
+# Run tests
+npm test
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
