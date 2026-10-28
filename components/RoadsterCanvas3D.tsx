@@ -396,11 +396,27 @@ export default function RoadsterCanvas3D({
     });
 
     const goldThrusterMat = new THREE.MeshStandardMaterial({
-      color: 0xfbbf24,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.95,
+      color: 0xd99b26,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.72,
       metalness: 0.78,
-      roughness: 0.24,
+      roughness: 0.26,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+
+    const thrusterWireMat = new THREE.LineBasicMaterial({
+      color: 0xfde68a,
+      transparent: true,
+      opacity: 0.88,
+    });
+
+    const thrusterCreaseMat = new THREE.LineBasicMaterial({
+      color: 0xfbbf24,
+      transparent: true,
+      opacity: 0.95,
     });
 
     const goldXrayInternalMat = new THREE.MeshStandardMaterial({
@@ -427,7 +443,7 @@ export default function RoadsterCanvas3D({
     const staticBodyZonesGroup = new THREE.Group();
     chassisGroup.add(staticBodyZonesGroup);
 
-    const rearWingBaseCenter: [number, number, number] = [-1.9182, 0.9562, 0.0095];
+    const rearWingBaseCenter: [number, number, number] = [-2.04, 0.915, 0.0];
     const rearWingGroup = new THREE.Group();
     rearWingGroup.position.set(...rearWingBaseCenter);
     chassisGroup.add(rearWingGroup);
@@ -499,7 +515,7 @@ export default function RoadsterCanvas3D({
           pivotCenter?: [number, number, number]
         ) => {
           const zMeta = manifest.zones[zoneKey];
-          if (!zMeta) return;
+          if (!zMeta) return null;
 
           const triGeo = new THREE.BufferGeometry();
           triGeo.setAttribute('position', sharedPosAttr);
@@ -537,6 +553,7 @@ export default function RoadsterCanvas3D({
             group.position.set(-pivotCenter[0], -pivotCenter[1], -pivotCenter[2]);
           }
           targetParent.add(group);
+          return group;
         };
 
         // Static chassis zones
@@ -545,15 +562,10 @@ export default function RoadsterCanvas3D({
         attachZone('headlights', staticBodyZonesGroup, headlightSurfaceMat, lightsWireMat, lightsWireMat);
         attachZone('taillights', staticBodyZonesGroup, taillightSurfaceMat, rearWingWireMat, rearWingWireMat);
 
+        // Exact 8 recessed SpaceX Cold-Gas Thruster & Suction Fan housings from the wireframe mesh
+        attachZone('thrusters', staticBodyZonesGroup, goldThrusterMat, thrusterWireMat, thrusterCreaseMat);
+
         // Articulated aero zones (rotating & deploying around their exact 3D centroids)
-        attachZone(
-          'rear_wing',
-          rearWingGroup,
-          activeAeroSurfaceMat,
-          rearWingWireMat,
-          rearWingWireMat,
-          rearWingBaseCenter
-        );
         attachZone(
           'front_splitter',
           frontSplitterGroup,
@@ -602,54 +614,186 @@ export default function RoadsterCanvas3D({
         console.error('Failed to load Tesla Volador 3D asset:', err);
       });
 
-    // Cockpit Auxiliary Hardware Overlays (Endplates, Crimson Wake, Nozzles, X-Ray Cutaways)
-    const rearWingAuxGroup = new THREE.Group();
-    rearWingGroup.add(rearWingAuxGroup);
+    // Precision Contoured 4×16 Quad-Wireframe Active Rear Wing + Swept Triangular Outer Endplates
+    // Conforms 1:1 to the rear decklid when Stowed (sec_03_car.jpg), levels in Low Drag (sec_05_car.jpg),
+    // and pitches to High Downforce (sec_04_car.jpg, sec_23_car.jpg, sec_32_car.jpg)
+    {
+      const wingLocalGroup = new THREE.Group();
+      wingLocalGroup.position.set(
+        -rearWingBaseCenter[0],
+        -rearWingBaseCenter[1],
+        -rearWingBaseCenter[2]
+      );
+      rearWingGroup.add(wingLocalGroup);
 
-    const endplateGeo = new THREE.BoxGeometry(0.42, 0.16, 0.018, 6, 3, 1);
-    [-0.76, 0.76].forEach((zPos) => {
-      const ep = new THREE.Mesh(endplateGeo, carbonMat);
-      ep.position.set(-0.02, -0.02, zPos);
-      rearWingAuxGroup.add(ep);
-      const epWire = new THREE.LineSegments(
-        new THREE.WireframeGeometry(endplateGeo),
+      const nU = 5; // 4 chordwise quad rows
+      const nV = 16; // 16 spanwise quad columns
+      const wingVerts: number[] = [];
+      const wingTris: number[] = [];
+      const wingQuadLines: number[] = [];
+
+      const evalDeck = (u: number, v: number, isTop: boolean): [number, number, number] => {
+        const z = v * 0.875;
+        const xLead = -1.895 - 0.032 * v * v;
+        const xTrail = -2.238 + 0.008 * v * v;
+        const x = xLead * (1 - u) + xTrail * u;
+        const yContour =
+          (0.956 * (1 - u) + 0.896 * u) -
+          0.022 * v * v +
+          0.011 * Math.sin(u * Math.PI);
+        const thickness = isTop
+          ? 0.004 + 0.007 * Math.sin(u * Math.PI)
+          : -0.002 - 0.009 * Math.sin(u * Math.PI);
+        return [x, yContour + thickness, z];
+      };
+
+      // Top skin vertices [0 .. (nU+1)*(nV+1)-1], Bottom skin vertices offset by stride
+      const stride = (nU + 1) * (nV + 1);
+      for (const isTop of [true, false]) {
+        for (let iu = 0; iu <= nU; iu++) {
+          const u = iu / nU;
+          for (let iv = 0; iv <= nV; iv++) {
+            const v = (iv / nV) * 2 - 1;
+            const [x, y, z] = evalDeck(u, v, isTop);
+            wingVerts.push(x, y, z);
+          }
+        }
+      }
+
+      for (let layer = 0; layer < 2; layer++) {
+        const base = layer * stride;
+        for (let iu = 0; iu < nU; iu++) {
+          for (let iv = 0; iv < nV; iv++) {
+            const a = base + iu * (nV + 1) + iv;
+            const b = a + 1;
+            const c = a + (nV + 1);
+            const d = c + 1;
+            if (layer === 0) {
+              wingTris.push(a, c, b, b, c, d);
+            } else {
+              wingTris.push(a, b, c, b, d, c);
+            }
+          }
+        }
+        // Pure quad grid lines (no diagonals)
+        for (let iu = 0; iu <= nU; iu++) {
+          for (let iv = 0; iv < nV; iv++) {
+            const a = ( base + iu * (nV + 1) + iv ) * 3;
+            const b = ( base + iu * (nV + 1) + iv + 1 ) * 3;
+            wingQuadLines.push(
+              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
+              wingVerts[b], wingVerts[b + 1], wingVerts[b + 2]
+            );
+          }
+        }
+        for (let iv = 0; iv <= nV; iv++) {
+          for (let iu = 0; iu < nU; iu++) {
+            const a = ( base + iu * (nV + 1) + iv ) * 3;
+            const c = ( base + (iu + 1) * (nV + 1) + iv ) * 3;
+            wingQuadLines.push(
+              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
+              wingVerts[c], wingVerts[c + 1], wingVerts[c + 2]
+            );
+          }
+        }
+      }
+
+      // Swept Triangular / Chevron Outer Endplates at z = -0.875 and z = +0.875 (matching sec_03, sec_04, sec_05)
+      const nW = 3; // vertical quad subdivisions on each endplate
+      ([-1, 1] as const).forEach((sideSign) => {
+        const epBaseIdx = wingVerts.length / 3;
+        for (let iu = 0; iu <= nU; iu++) {
+          const u = iu / nU;
+          const [xTop, yTop, zTop] = evalDeck(u, sideSign, true);
+          const xBot = -2.01 * (1 - u) + -2.246 * u;
+          const yBot = 0.882 * (1 - u) + 0.746 * u;
+          const zBot = sideSign * (0.892 + 0.018 * u);
+          for (let iw = 0; iw <= nW; iw++) {
+            const w = iw / nW;
+            wingVerts.push(
+              xTop * (1 - w) + xBot * w,
+              yTop * (1 - w) + yBot * w,
+              zTop * (1 - w) + zBot * w
+            );
+          }
+        }
+        for (let iu = 0; iu < nU; iu++) {
+          for (let iw = 0; iw < nW; iw++) {
+            const a = epBaseIdx + iu * (nW + 1) + iw;
+            const b = a + 1;
+            const c = a + (nW + 1);
+            const d = c + 1;
+            wingTris.push(a, b, c, b, d, c);
+          }
+        }
+        for (let iu = 0; iu <= nU; iu++) {
+          for (let iw = 0; iw < nW; iw++) {
+            const a = (epBaseIdx + iu * (nW + 1) + iw) * 3;
+            const b = (epBaseIdx + iu * (nW + 1) + iw + 1) * 3;
+            wingQuadLines.push(
+              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
+              wingVerts[b], wingVerts[b + 1], wingVerts[b + 2]
+            );
+          }
+        }
+        for (let iw = 0; iw <= nW; iw++) {
+          for (let iu = 0; iu < nU; iu++) {
+            const a = (epBaseIdx + iu * (nW + 1) + iw) * 3;
+            const c = (epBaseIdx + (iu + 1) * (nW + 1) + iw) * 3;
+            wingQuadLines.push(
+              wingVerts[a], wingVerts[a + 1], wingVerts[a + 2],
+              wingVerts[c], wingVerts[c + 1], wingVerts[c + 2]
+            );
+          }
+        }
+      });
+
+      const wingSurfGeo = new THREE.BufferGeometry();
+      wingSurfGeo.setAttribute('position', new THREE.Float32BufferAttribute(wingVerts, 3));
+      wingSurfGeo.setIndex(wingTris);
+      wingSurfGeo.computeVertexNormals();
+      wingLocalGroup.add(new THREE.Mesh(wingSurfGeo, activeAeroSurfaceMat));
+
+      const wingWireGeo = new THREE.BufferGeometry();
+      wingWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(wingQuadLines, 3));
+      wingLocalGroup.add(new THREE.LineSegments(wingWireGeo, rearWingWireMat));
+    }
+
+    // Twin Articulated Hydraulic/Linkage Pylon Struts connecting the recessed rear decklid to the active Rear Wing
+    // (Matches sec_04_car.jpg, sec_05_car.jpg, sec_23_car.jpg, sec_32_car.jpg, sec_33_car.jpg)
+    const rearWingAuxGroup = new THREE.Group();
+    chassisGroup.add(rearWingAuxGroup);
+
+    const pylonStrutPairs: {
+      mainStrut: THREE.Group;
+      rearLink: THREE.Group;
+      zPos: number;
+    }[] = [];
+
+    const mainStrutGeo = new THREE.BoxGeometry(0.055, 0.18, 0.018);
+    const rearLinkGeo = new THREE.BoxGeometry(0.028, 0.16, 0.014);
+
+    [-0.35, 0.35].forEach((zPos) => {
+      const mainStrut = new THREE.Group();
+      const sMesh = new THREE.Mesh(mainStrutGeo, carbonMat);
+      const sWire = new THREE.LineSegments(
+        new THREE.EdgesGeometry(mainStrutGeo),
         rearWingWireMat
       );
-      epWire.position.copy(ep.position);
-      rearWingAuxGroup.add(epWire);
-    });
+      mainStrut.add(sMesh, sWire);
+      rearWingAuxGroup.add(mainStrut);
 
-    // Subdivided crimson quad-wireframe top airfoil deck (matches sec_03_car.jpg & sec_04_car.jpg)
-    const wingAirfoilQuadGeo = new THREE.PlaneGeometry(0.36, 1.5, 5, 14);
-    wingAirfoilQuadGeo.rotateX(-Math.PI / 2);
-    const wingAirfoilWire = new THREE.LineSegments(
-      new THREE.WireframeGeometry(wingAirfoilQuadGeo),
-      rearWingWireMat
-    );
-    wingAirfoilWire.position.set(-0.01, 0.028, 0);
-    rearWingAuxGroup.add(wingAirfoilWire);
+      const rearLink = new THREE.Group();
+      const lMesh = new THREE.Mesh(rearLinkGeo, carbonMat);
+      const lWire = new THREE.LineSegments(
+        new THREE.EdgesGeometry(rearLinkGeo),
+        rearWingWireMat
+      );
+      rearLink.add(lMesh, lWire);
+      rearWingAuxGroup.add(rearLink);
 
-    const strutGeo = new THREE.BoxGeometry(0.05, 0.18, 0.024);
-    [-0.38, 0.38].forEach((zPos) => {
-      const strut = new THREE.Mesh(strutGeo, carbonMat);
-      strut.position.set(0.02, -0.09, zPos);
-      strut.rotation.z = 0.25;
-      rearWingAuxGroup.add(strut);
+      pylonStrutPairs.push({mainStrut, rearLink, zPos});
     });
-
-    // Soft crimson aerodynamic wake behind rear wing (matches ui_1.jpg & ui_3.jpg)
-    const redWakeGeo = new THREE.ConeGeometry(0.42, 2.4, 20, 1, true);
-    redWakeGeo.rotateZ(Math.PI / 2);
-    const redWakeMat = new THREE.MeshBasicMaterial({
-      color: 0xff1a1a,
-      transparent: true,
-      opacity: 0.18,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const redWakeMesh = new THREE.Mesh(redWakeGeo, redWakeMat);
-    redWakeMesh.position.set(-1.35, -0.04, 0);
-    rearWingAuxGroup.add(redWakeMesh);
 
     // Fender Barge-Board Crimson Quad-Wireframe Louver Grid behind front wheel (matches sec_07_car.jpg)
     const bargeFenderQuadGroup = new THREE.Group();
@@ -735,46 +879,32 @@ export default function RoadsterCanvas3D({
     hoodVentGridWire.position.set(-0.04, -0.008, 0);
     hoodVentGroup.add(hoodVentGridWire);
 
-    // Full-Width Crimson Rear LED Tail Light Bar (ui_1.jpg & ui_5.jpg)
-    const rearTailLight = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.042, 1.54),
-      crimsonEmissiveMat
-    );
-    rearTailLight.position.set(-2.22, 0.74, 0);
+    // Multi-Blade Crimson Rear LED Tail Light Visor Bars recessed at x = -2.23, y = 0.77..0.85 (sec_03..05 & sec_31..33)
+    const rearTailLight = new THREE.Group();
+    [0.775, 0.802, 0.828, 0.852].forEach((yBar) => {
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.018, 0.009, 1.68),
+        crimsonEmissiveMat
+      );
+      blade.position.set(-2.228, yBar, 0);
+      rearTailLight.add(blade);
+    });
     chassisGroup.add(rearTailLight);
 
-    // 8 Golden Illuminated SpaceX Cold-Gas Thruster & Underbody Fan Nozzles
+    // Recessed Internal Impeller Rotors & Cold-Gas Plumes inside the 8 Wireframe Diffuser Thrusters
+    // (Centered at x = -1.945 inside the lower diffuser fan tunnels so nothing protrudes outside the car)
     const thrusterNozzlesGroup = new THREE.Group();
-    thrusterNozzlesGroup.position.set(-2.14, 0.34, 0);
+    thrusterNozzlesGroup.position.set(-1.945, 0.34, 0);
     chassisGroup.add(thrusterNozzlesGroup);
 
     const fanRotors: THREE.Object3D[] = [];
-    const upperZOffsets = [-0.44, -0.15, 0.15, 0.44];
-    upperZOffsets.forEach((zOff) => {
-      const upperDuct = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.075, 0.22, 16),
-        goldThrusterMat
-      );
-      upperDuct.rotation.z = Math.PI / 2;
-      upperDuct.position.set(-0.04, 0.11, zOff);
-      thrusterNozzlesGroup.add(upperDuct);
-    });
-
-    const lowerZOffsets = [-0.5, -0.17, 0.17, 0.5];
+    const lowerZOffsets = [-0.455, -0.158, 0.158, 0.455];
     lowerZOffsets.forEach((zOff) => {
-      const lowerDuct = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.105, 0.13, 0.26, 20),
-        goldThrusterMat
-      );
-      lowerDuct.rotation.z = Math.PI / 2;
-      lowerDuct.position.set(-0.05, -0.05, zOff);
-      thrusterNozzlesGroup.add(lowerDuct);
-
       const rotor = new THREE.Group();
-      rotor.position.set(-0.12, -0.05, zOff);
+      rotor.position.set(0.0, 0.0, zOff);
       for (let b = 0; b < 5; b++) {
         const blade = new THREE.Mesh(
-          new THREE.BoxGeometry(0.02, 0.09, 0.026),
+          new THREE.BoxGeometry(0.014, 0.052, 0.016),
           goldThrusterMat
         );
         blade.rotation.x = (b * Math.PI * 2) / 5;
@@ -793,11 +923,11 @@ export default function RoadsterCanvas3D({
       depthWrite: false,
     });
     const thrusterPlumesGroup = new THREE.Group();
-    lowerZOffsets.forEach((zOff) => {
-      const pGeo = new THREE.ConeGeometry(0.16, 1.45, 16, 1, true);
+    [-0.388, -0.148, 0.148, 0.388].forEach((zOff) => {
+      const pGeo = new THREE.ConeGeometry(0.08, 1.15, 14, 1, true);
       pGeo.rotateZ(-Math.PI / 2);
       const pMesh = new THREE.Mesh(pGeo, plumeMat);
-      pMesh.position.set(-0.85, -0.05, zOff);
+      pMesh.position.set(-0.68, 0.14, zOff);
       thrusterPlumesGroup.add(pMesh);
     });
     thrusterNozzlesGroup.add(thrusterPlumesGroup);
@@ -1158,16 +1288,41 @@ export default function RoadsterCanvas3D({
       rearRedGlow.intensity = isStudioMode ? 0.0 : 3.0;
       thrusterGoldLight.intensity = isStudioMode ? 0.4 : 2.4;
 
-      // Apply 1: Rear Wing Elevation & Pitch around exact rear_wing centroid (sec_03, sec_04, sec_05, sec_32)
+      // Apply 1: Two-Stage Rear Wing Kinematics (Stowed -> Low Drag -> High Downforce)
+      // Matches sec_03_car.jpg (Stowed), sec_05_car.jpg (Low Drag), sec_04_car.jpg (High Downforce), and sec_31..33
       const effectiveRearWing = isStudioMode && s.activeHotspot !== 'rearWing' ? 0 : curRearWing;
+      const tLift = Math.min(1, effectiveRearWing / 0.48);
+      const tHigh = Math.max(0, (effectiveRearWing - 0.48) / 0.52);
+      const wingLiftY = tLift * 0.135 + tHigh * 0.05;
+      const wingShiftX = -tLift * 0.032 - tHigh * 0.022;
+      const wingPitchZ = -tLift * 0.145 - tHigh * 0.335;
+
       rearWingGroup.position.set(
-        rearWingBaseCenter[0] - effectiveRearWing * 0.03,
-        rearWingBaseCenter[1] + effectiveRearWing * 0.16,
+        rearWingBaseCenter[0] + wingShiftX,
+        rearWingBaseCenter[1] + wingLiftY,
         rearWingBaseCenter[2]
       );
-      rearWingGroup.rotation.z = -effectiveRearWing * 0.28;
-      rearWingAuxGroup.visible = !isStudioMode && effectiveRearWing > 0.04;
-      redWakeMat.opacity = isStudioMode ? 0.0 : curRedWake * 0.22;
+      rearWingGroup.rotation.z = wingPitchZ;
+
+      rearWingAuxGroup.visible = effectiveRearWing > 0.03;
+      const strutScaleY = Math.max(0.05, wingLiftY / 0.165);
+      pylonStrutPairs.forEach(({mainStrut, rearLink, zPos}) => {
+        mainStrut.position.set(
+          -1.98 + wingShiftX * 0.45,
+          0.895 + wingLiftY * 0.48,
+          zPos
+        );
+        mainStrut.scale.set(1, strutScaleY, 1);
+        mainStrut.rotation.z = 0.22 + tHigh * 0.08;
+
+        rearLink.position.set(
+          -2.08 + wingShiftX * 0.55,
+          0.892 + wingLiftY * 0.54,
+          zPos
+        );
+        rearLink.scale.set(1, strutScaleY * (1 + tHigh * 0.18), 1);
+        rearLink.rotation.z = 0.3 + tHigh * 0.12;
+      });
 
       // Apply 2: Front Splitter Deployment & Pitch around exact front_splitter centroid
       const splitterOffset =
@@ -1260,6 +1415,15 @@ export default function RoadsterCanvas3D({
         taillightSurfaceMat.color.setHex(0xf4f5f7);
         taillightSurfaceMat.emissiveIntensity = 0.0;
 
+        goldThrusterMat.color.setHex(0xf0f1f4);
+        goldThrusterMat.metalness = 0.08;
+        goldThrusterMat.roughness = 0.78;
+        goldThrusterMat.emissiveIntensity = 0.0;
+        thrusterWireMat.color.setHex(0x52565e);
+        thrusterWireMat.opacity = 0.62;
+        thrusterCreaseMat.color.setHex(0x1f2228);
+        thrusterCreaseMat.opacity = 0.88;
+
         bodyCreaseMat.color.setHex(0x1f2228);
         bodyCreaseMat.opacity = 0.88;
         bodyWireframeMat.color.setHex(0x52565e);
@@ -1309,6 +1473,16 @@ export default function RoadsterCanvas3D({
         taillightSurfaceMat.color.setHex(0xff1e1e);
         taillightSurfaceMat.emissiveIntensity = 0.95;
 
+        goldThrusterMat.color.setHex(0xd99b26);
+        goldThrusterMat.metalness = 0.78;
+        goldThrusterMat.roughness = 0.26;
+        goldThrusterMat.emissiveIntensity =
+          0.52 + targets.thrusterNozzleGlow * 0.55 + curPlume * 1.5;
+        thrusterWireMat.color.setHex(0xfde68a);
+        thrusterWireMat.opacity = 0.86;
+        thrusterCreaseMat.color.setHex(0xfbbf24);
+        thrusterCreaseMat.opacity = 0.95;
+
         bodyCreaseMat.color.setHex(0xcbd5e1);
         bodyCreaseMat.opacity = THREE.MathUtils.lerp(0.66, 0.85, anyXray);
         bodyWireframeMat.color.setHex(0x94a3b8);
@@ -1348,9 +1522,7 @@ export default function RoadsterCanvas3D({
       rearTailLight.visible = !isStudioMode;
       thrusterNozzlesGroup.visible = !isStudioMode || curPlume > 0.05;
 
-      // Apply 8: SpaceX Thruster Nozzles, Fans & Cold-Gas Plume
-      goldThrusterMat.emissiveIntensity =
-        0.85 + targets.thrusterNozzleGlow * 0.8 + curPlume * 2.0;
+      // Apply 8: SpaceX Cold-Gas Plume
       plumeMat.opacity = curPlume * (0.65 + 0.25 * Math.sin(elapsed * 45));
       thrusterPlumesGroup.scale.set(
         1 + curPlume * 0.35 * Math.sin(elapsed * 38),

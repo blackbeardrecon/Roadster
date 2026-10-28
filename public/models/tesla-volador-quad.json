@@ -5,11 +5,11 @@
   "zones": {
     "body": {
       "triOffset": 330456,
-      "triCount": 25524,
-      "creaseOffset": 438936,
-      "creaseVertCount": 9530,
-      "gridOffset": 553296,
-      "gridVertCount": 46680,
+      "triCount": 25281,
+      "creaseOffset": 381020,
+      "creaseVertCount": 9112,
+      "gridOffset": 490364,
+      "gridVertCount": 47148,
       "center": [
         -0.8546,
         0.5375,
@@ -17,11 +17,11 @@
       ]
     },
     "canopy": {
-      "triOffset": 381504,
+      "triOffset": 1056140,
       "triCount": 3246,
-      "creaseOffset": 1113456,
+      "creaseOffset": 1062632,
       "creaseVertCount": 1056,
-      "gridOffset": 1126128,
+      "gridOffset": 1075304,
       "gridVertCount": 7238,
       "center": [
         -0.0766,
@@ -30,11 +30,11 @@
       ]
     },
     "wheel_fl": {
-      "triOffset": 387996,
+      "triOffset": 1162160,
       "triCount": 3711,
-      "creaseOffset": 1212984,
+      "creaseOffset": 1169584,
       "creaseVertCount": 1660,
-      "gridOffset": 1232904,
+      "gridOffset": 1189504,
       "gridVertCount": 7106,
       "center": [
         1.4231,
@@ -43,11 +43,11 @@
       ]
     },
     "wheel_fr": {
-      "triOffset": 395418,
+      "triOffset": 1274776,
       "triCount": 3516,
-      "creaseOffset": 1318176,
+      "creaseOffset": 1281808,
       "creaseVertCount": 1698,
-      "gridOffset": 1338552,
+      "gridOffset": 1302184,
       "gridVertCount": 6844,
       "center": [
         1.461,
@@ -56,11 +56,11 @@
       ]
     },
     "wheel_rl": {
-      "triOffset": 402450,
+      "triOffset": 1384312,
       "triCount": 5571,
-      "creaseOffset": 1420680,
+      "creaseOffset": 1395456,
       "creaseVertCount": 2576,
-      "gridOffset": 1451592,
+      "gridOffset": 1426368,
       "gridVertCount": 9040,
       "center": [
         -1.5264,
@@ -69,11 +69,11 @@
       ]
     },
     "wheel_rr": {
-      "triOffset": 413592,
+      "triOffset": 1534848,
       "triCount": 6000,
-      "creaseOffset": 1560072,
+      "creaseOffset": 1546848,
       "creaseVertCount": 2482,
-      "gridOffset": 1589856,
+      "gridOffset": 1576632,
       "gridVertCount": 9744,
       "center": [
         -1.4965,
@@ -82,24 +82,24 @@
       ]
     },
     "rear_wing": {
-      "triOffset": 425592,
-      "triCount": 1551,
-      "creaseOffset": 1706784,
-      "creaseVertCount": 686,
-      "gridOffset": 1715016,
-      "gridVertCount": 2160,
+      "triOffset": 1693560,
+      "triCount": 0,
+      "creaseOffset": 1693560,
+      "creaseVertCount": 0,
+      "gridOffset": 1693560,
+      "gridVertCount": 0,
       "center": [
-        -1.9308,
-        0.9488,
-        0.0521
+        -2.06,
+        0.915,
+        0
       ]
     },
     "front_splitter": {
-      "triOffset": 428694,
+      "triOffset": 1693560,
       "triCount": 1689,
-      "creaseOffset": 1740936,
+      "creaseOffset": 1696940,
       "creaseVertCount": 576,
-      "gridOffset": 1747848,
+      "gridOffset": 1703852,
       "gridVertCount": 2902,
       "center": [
         2.0731,
@@ -108,11 +108,11 @@
       ]
     },
     "barge_board_l": {
-      "triOffset": 432072,
+      "triOffset": 1738676,
       "triCount": 345,
-      "creaseOffset": 1782672,
+      "creaseOffset": 1739368,
       "creaseVertCount": 58,
-      "gridOffset": 1783368,
+      "gridOffset": 1740064,
       "gridVertCount": 908,
       "center": [
         -0.0293,
@@ -121,11 +121,11 @@
       ]
     },
     "barge_board_r": {
-      "triOffset": 432762,
+      "triOffset": 1750960,
       "triCount": 321,
-      "creaseOffset": 1794264,
+      "creaseOffset": 1751604,
       "creaseVertCount": 50,
-      "gridOffset": 1794864,
+      "gridOffset": 1752204,
       "gridVertCount": 836,
       "center": [
         -0.1699,
@@ -134,11 +134,11 @@
       ]
     },
     "hood_vent": {
-      "triOffset": 433404,
+      "triOffset": 1762236,
       "triCount": 216,
-      "creaseOffset": 1804896,
+      "creaseOffset": 1762668,
       "creaseVertCount": 38,
-      "gridOffset": 1805352,
+      "gridOffset": 1763124,
       "gridVertCount": 726,
       "center": [
         1.553,
@@ -147,11 +147,11 @@
       ]
     },
     "headlights": {
-      "triOffset": 433836,
+      "triOffset": 1771836,
       "triCount": 1494,
-      "creaseOffset": 1814064,
+      "creaseOffset": 1774824,
       "creaseVertCount": 710,
-      "gridOffset": 1822584,
+      "gridOffset": 1783344,
       "gridVertCount": 1938,
       "center": [
         1.9683,
@@ -160,16 +160,29 @@
       ]
     },
     "taillights": {
-      "triOffset": 436824,
-      "triCount": 1056,
-      "creaseOffset": 1845840,
-      "creaseVertCount": 430,
-      "gridOffset": 1851000,
-      "gridVertCount": 2304,
+      "triOffset": 1806600,
+      "triCount": 450,
+      "creaseOffset": 1807500,
+      "creaseVertCount": 122,
+      "gridOffset": 1808964,
+      "gridVertCount": 1286,
       "center": [
-        -2.191,
-        0.7306,
-        0.0251
+        -2.22,
+        0.81,
+        0
+      ]
+    },
+    "thrusters": {
+      "triOffset": 1824396,
+      "triCount": 2400,
+      "creaseOffset": 1829196,
+      "creaseVertCount": 1412,
+      "gridOffset": 1846140,
+      "gridVertCount": 2710,
+      "center": [
+        -2.01,
+        0.41,
+        0
       ]
     }
   }
