@@ -1,0 +1,6 @@
+{
+  "name": "Tesla Roadster Cockpit Interface",
+  "description": "1:1 interactive cockpit UI and synchronized 34-second showcase of the Next-Gen Tesla Roadster fighter-jet interface, active aerodynamics, SpaceX cold-gas thruster telemetry, and Track Mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
